@@ -21,10 +21,10 @@ function App() {
     try {
       const response = await axios.post(`${BACKEND_URL}/authentication/login`, {
         email: email,
-        passwd: password, // Changed from password to passwd
+        passwd: password,
       });
 
-      saveToken(response.data.token);
+      saveToken(response.data.data.token);
       setEmail("");
       setPassword("");
       setRegistrationSuccess(false);
