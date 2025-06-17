@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import axios from "axios";
 
 type TokenContextType = {
   token: string | null;
@@ -28,6 +29,15 @@ export function TokenProvider({ children }: TokenProviderProps) {
     localStorage.removeItem("token");
     setToken(null);
   };
+
+  // Set up axios default headers whenever token changes
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common["Authorization"];
+    }
+  }, [token]);
 
   const value = {
     token,

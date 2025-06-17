@@ -1,7 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
-
-const BACKEND_URL = "http://198.211.105.95:8080";
+import axiosInstance from "../services/axios";
 
 type RegisterFormProps = {
   onSuccess: () => void;
@@ -50,7 +48,7 @@ function RegisterForm({ onSuccess, switchToLogin }: RegisterFormProps) {
     setLoading(true);
     
     try {
-      await axios.post(`${BACKEND_URL}/authentication/register`, {
+      await axiosInstance.post(`/authentication/register`, {
         email: email,
         passwd: password,
       });

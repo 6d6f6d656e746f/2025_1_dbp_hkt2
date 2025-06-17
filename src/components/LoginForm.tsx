@@ -1,8 +1,6 @@
 import { useState } from "react";
-import axios from "axios";
 import useToken from "../contexts/TokenContext";
-
-const BACKEND_URL = "http://198.211.105.95:8080";
+import axiosInstance, { BACKEND_URL } from "../services/axios";
 
 type LoginFormProps = {
   switchToRegister: () => void;
@@ -22,17 +20,33 @@ function LoginForm({ switchToRegister, registrationSuccess }: LoginFormProps) {
     setLoading(true);
     
     try {
-      const response = await axios.post(`${BACKEND_URL}/authentication/login`, {
+      const response = await axiosInstance.post(`/authentication/login`, {
         email: email,
         passwd: password,
       });
 
-      saveToken(response.data.data.token);
-      setEmail("");
-      setPassword("");
+      // Log the response structure to debug
+      console.log("Login response:", response.data);
+      
+      // The token is at response.data.result.token (or fallback to data.data.token for compatibility)
+      const token = response.data?.result?.token || response.data?.data?.token;
+      if (token) {
+        saveToken(token);
+        setEmail("");
+        setPassword("");
+      } else {
+        throw new Error("Token not found in response");
+      }
     } catch (err: any) {
       console.error("Login error:", err);
-      setError("Invalid credentials. Please try again.");
+      // Try to show backend error message if available
+      if (err.response && err.response.data && err.response.data.message) {
+        setError(err.response.data.message);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError("Invalid credentials. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
