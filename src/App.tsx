@@ -21,7 +21,7 @@ function App() {
     try {
       const response = await axios.post(`${BACKEND_URL}/authentication/login`, {
         email: email,
-        password: password,
+        passwd: password, // Changed from password to passwd
       });
 
       saveToken(response.data.token);
