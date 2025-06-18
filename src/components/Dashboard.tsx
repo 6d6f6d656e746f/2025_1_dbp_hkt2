@@ -1,87 +1,168 @@
-import React, { useEffect, useState } from "react";
-import useDashboard from "../contexts/DashboardContext";
-import axiosInstance from "../services/axios";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const API_URL = "http://198.211.105.95:8080";
+
+interface Category {
+  id: number;
+  name: string;
+}
 
 interface DashboardProps {
   onLogout: () => void;
 }
 
-interface ExpenseSummary {
-  categoryId: number;
-  categoryName: string;
-  total: number;
-}
-
-interface ExpenseDetail {
-  id: number;
-  description: string;
-  amount: number;
-  date: string;
-}
-
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
-  const { categories, loading: loadingCategories, error: errorCategories } = useDashboard();
-  const [summary, setSummary] = useState<ExpenseSummary[]>([]);
-  const [loadingSummary, setLoadingSummary] = useState(true);
-  const [errorSummary, setErrorSummary] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [details, setDetails] = useState<ExpenseDetail[]>([]);
-  const [loadingDetails, setLoadingDetails] = useState(false);
-  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
 
-  // Get current year and month
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1; // JS months are 0-based
-
-  // Fetch summary on mount
   useEffect(() => {
-    async function fetchSummary() {
-      setLoadingSummary(true);
-      setErrorSummary(null);
+    const fetchCategories = async () => {
+      setIsLoading(true);
+      setError(null);
+      
       try {
-        const res = await axiosInstance.get(`/expenses_summary?year=${year}&month=${month}`);
-        // Expecting array of { categoryId, categoryName, total }
-        setSummary(res.data.data || []);
-      } catch (err: any) {
-        setErrorSummary(err.response?.data?.message || err.message || "Failed to fetch summary");
+        // Try different possible token keys
+        let token = localStorage.getItem('token') || 
+                    localStorage.getItem('authToken') || 
+                    localStorage.getItem('accessToken') ||
+                    localStorage.getItem('jwt');
+        
+        console.log("Auth token found:", token ? "Yes" : "No");
+        
+        // Configure headers
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+          console.log("Using Authorization header:", headers.Authorization);
+        } else {
+          console.warn("No authentication token found in localStorage");
+        }
+        
+        console.log("Making request to:", `${API_URL}/expenses_category`);
+        
+        const response = await axios.get(`${API_URL}/expenses_category`, { 
+          headers,
+          // Add timeout to prevent hanging requests
+          timeout: 10000
+        });
+        
+        console.log("Categories Response:", response);
+        console.log("Response Data:", response.data);
+        console.log("Response Status:", response.status);
+        
+        if (response.status === 200) {
+          setCategories(response.data);
+        } else {
+          setError("Failed to fetch categories");
+        }
+      } catch (error: any) {
+        console.error("Error fetching categories:", error);
+        console.error("Error details:", {
+          message: error.message,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data
+        });
+        
+        if (error.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          if (error.response.status === 401) {
+            setError(`Unauthorized: Please login again (Status: ${error.response.status})`);
+          } else if (error.response.status === 403) {
+            setError(`Forbidden: You don't have permission to access this resource (Status: ${error.response.status})`);
+          } else {
+            setError(`Server error: ${error.response.status} ${error.response.statusText}`);
+          }
+        } else if (error.request) {
+          // The request was made but no response was received
+          setError("No response received from the server. Please check your internet connection.");
+        } else {
+          // Something happened in setting up the request that triggered an Error
+          setError(`Request configuration error: ${error.message}`);
+        }
       } finally {
-        setLoadingSummary(false);
+        setIsLoading(false);
       }
-    }
-    fetchSummary();
-  }, [year, month]);
+    };
 
-  // Fetch details when a category is selected
-  useEffect(() => {
-    if (selectedCategory == null) return;
-    async function fetchDetails() {
-      setLoadingDetails(true);
-      setErrorDetails(null);
-      try {
-        const res = await axiosInstance.get(
-          `/expenses/detail?year=${year}&month=${month}&categoryId=${selectedCategory}`
-        );
-        setDetails(res.data.data || []);
-      } catch (err: any) {
-        setErrorDetails(err.response?.data?.message || err.message || "Failed to fetch details");
-      } finally {
-        setLoadingDetails(false);
+    fetchCategories();
+  }, []);
+
+  const handleDeleteCategory = async () => {
+    if (!selectedCategory) {
+      alert("Please select a category to delete");
+      return;
+    }
+
+    // Placeholder for delete functionality
+    try {
+      // Get token for authentication
+      const token = localStorage.getItem('token') || 
+                    localStorage.getItem('authToken') || 
+                    localStorage.getItem('accessToken') ||
+                    localStorage.getItem('jwt');
+      
+      if (!token) {
+        setError("Authentication token not found. Please log in again.");
+        return;
       }
-    }
-    fetchDetails();
-  }, [selectedCategory, year, month]);
 
-  // Helper to get category name by id
-  const getCategoryName = (id: number) => {
-    return categories.find((cat) => cat.id === id)?.name || `Categoría ${id}`;
+      // This would be the actual delete API call
+      console.log(`Would delete category with ID: ${selectedCategory.id}`);
+      alert(`Delete functionality is a placeholder. Would delete: ${selectedCategory.name}`);
+      
+      // Reset selection after delete
+      setSelectedCategory(null);
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      setError("Failed to delete category");
+    }
+  };
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newCategoryName.trim()) {
+      alert("Category name cannot be empty");
+      return;
+    }
+
+    // Placeholder for add functionality
+    try {
+      // Get token for authentication
+      const token = localStorage.getItem('token') || 
+                    localStorage.getItem('authToken') || 
+                    localStorage.getItem('accessToken') ||
+                    localStorage.getItem('jwt');
+      
+      if (!token) {
+        setError("Authentication token not found. Please log in again.");
+        return;
+      }
+
+      // This would be the actual add API call
+      console.log(`Would add category with name: ${newCategoryName}`);
+      alert(`Add functionality is a placeholder. Would add: ${newCategoryName}`);
+      
+      // Reset form
+      setNewCategoryName('');
+      setShowAddForm(false);
+    } catch (error) {
+      console.error("Error adding category:", error);
+      setError("Failed to add category");
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header with logout button */}
       <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-md mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Expense Dashboard</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
         <button
           className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors duration-200"
           onClick={onLogout}
@@ -90,78 +171,81 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         </button>
       </div>
 
-      {/* Monthly Summary */}
-      <div className="bg-white p-8 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Monthly Summary</h2>
-        {loadingSummary || loadingCategories ? (
-          <div className="text-center py-4">
-            <p className="text-gray-600">Loading summary...</p>
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-gray-800">Expense Categories</h3>
+          <div className="space-x-2">
+            <button
+              className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-colors duration-200 disabled:bg-gray-400"
+              onClick={handleDeleteCategory}
+              disabled={!selectedCategory}
+            >
+              Delete
+            </button>
+            <button
+              className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition-colors duration-200"
+              onClick={() => setShowAddForm(!showAddForm)}
+            >
+              Add
+            </button>
           </div>
-        ) : errorSummary || errorCategories ? (
-          <div className="bg-red-100 text-red-700 p-4 rounded-md mb-4">Error: {errorSummary || errorCategories}</div>
-        ) : summary.length === 0 ? (
-          <p className="text-center text-gray-600">No summary data found.</p>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {summary.map((item) => (
-              <div
-                key={item.categoryId}
-                className={`bg-blue-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border-2 border-blue-100 hover:border-blue-300 ${selectedCategory === item.categoryId ? "border-blue-500" : ""}`}
-                onClick={() => setSelectedCategory(item.categoryId)}
+        </div>
+
+        {showAddForm && (
+          <div className="mb-4 p-4 border border-gray-200 rounded-md bg-gray-50">
+            <form onSubmit={handleAddCategory} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Category name"
+                className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-200"
               >
-                <h3 className="font-medium text-blue-800">{getCategoryName(item.categoryId)}</h3>
-                <div className="mt-2 text-lg font-bold text-gray-700">S/ {item.total.toFixed(2)}</div>
-                <div className="mt-2 text-xs text-gray-500">Click to view details</div>
+                Save
+              </button>
+              <button
+                type="button"
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors duration-200"
+                onClick={() => setShowAddForm(false)}
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        )}
+        
+        {isLoading && (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+        
+        {error && (
+          <div className="p-4 mb-4 rounded-md bg-red-100 text-red-700">
+            {error}
+          </div>
+        )}
+        
+        {!isLoading && !error && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {categories.map((category) => (
+              <div 
+                key={category.id} 
+                className={`p-3 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors cursor-pointer ${
+                  selectedCategory?.id === category.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                }`}
+                onClick={() => setSelectedCategory(category)}
+              >
+                <p className="font-medium text-indigo-900">{category.name}</p>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Details for selected category */}
-      {selectedCategory && (
-        <div className="bg-white p-8 rounded-lg shadow-md">
-          <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
-            Details for {getCategoryName(selectedCategory)}
-          </h2>
-          {loadingDetails ? (
-            <div className="text-center py-4">
-              <p className="text-gray-600">Loading details...</p>
-            </div>
-          ) : errorDetails ? (
-            <div className="bg-red-100 text-red-700 p-4 rounded-md mb-4">Error: {errorDetails}</div>
-          ) : details.length === 0 ? (
-            <p className="text-center text-gray-600">No expenses found for this category.</p>
-          ) : (
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="py-2 px-4">Description</th>
-                  <th className="py-2 px-4">Amount</th>
-                  <th className="py-2 px-4">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.map((expense) => (
-                  <tr key={expense.id}>
-                    <td className="py-2 px-4">{expense.description}</td>
-                    <td className="py-2 px-4">S/ {expense.amount?.toFixed ? expense.amount.toFixed(2) : expense.amount}</td>
-                    <td className="py-2 px-4">{expense.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <div className="mt-4 text-center">
-            <button
-              className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400"
-              onClick={() => setSelectedCategory(null)}
-            >
-              Back to summary
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

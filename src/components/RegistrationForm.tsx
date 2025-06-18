@@ -1,23 +1,21 @@
 import { useState } from "react";
 import axios from "axios";
-import useToken from "../contexts/TokenContext";
-import RegistrationForm from "./RegistrationForm";
+import LoginForm from "./LoginForm";
 
 const API_URL = "http://198.211.105.95:8080";
 
-function LoginForm() {
-  const { saveToken } = useToken();
+function RegistrationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+  const [showLoginForm, setShowLoginForm] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     passwd: ""
   });
 
-  // If we should show registration form, render it instead
-  if (showRegistrationForm) {
-    return <RegistrationForm />;
+  // If we should show the login form, render it instead
+  if (showLoginForm) {
+    return <LoginForm />;
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,6 +31,12 @@ function LoginForm() {
       setMessage("Please fill all required fields");
       return false;
     }
+    
+    if (formData.passwd.length < 12) {
+      setMessage("Password must be at least 12 characters long");
+      return false;
+    }
+    
     return true;
   };
 
@@ -45,30 +49,35 @@ function LoginForm() {
     setMessage(null);
     
     try {
-      const response = await axios.post(`${API_URL}/authentication/login`, formData);
-      
+      const response = await axios.post(
+        `${API_URL}/authentication/register`, 
+        formData
+      );
+
       // Log the complete response to the terminal
-      console.log("Login Response:", response);
+      console.log("Registration Response:", response);
       console.log("Response Data:", response.data);
       console.log("Response Status:", response.status);
       
-      // Handle the correct response structure
-      if (response.data.status === 200 && response.data.result && response.data.result.token) {
-        saveToken(response.data.result.token);
-        setMessage("Login successful!");
-        console.log("Logged in as:", response.data.result.username);
-        console.log("Authentication token:", response.data.result.token);
+      // Check the HTTP status code instead of response.data.status
+      if (response.status === 200) {
+        setMessage("Registration successful! You can now login.");
+        setFormData({
+          email: "",
+          passwd: ""
+        });
+        console.log("User registered successfully");
       } else {
         setMessage("Unexpected response format from server");
         console.log("Unexpected response structure:", response.data);
       }
     } catch (error: any) {
-      console.error("Login error:", error);
+      console.error("Registration error:", error);
       console.error("Error response data:", error.response?.data);
       console.error("Error status:", error.response?.status);
       setMessage(
         error.response?.data?.message || 
-        "Login failed. Please check your credentials."
+        "Error during registration. Email might already exist."
       );
     } finally {
       setIsSubmitting(false);
@@ -77,7 +86,7 @@ function LoginForm() {
 
   return (
     <div className="w-full max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Login to Ahorrista</h2>
+      <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Register for Ahorrista</h2>
       
       {message && (
         <div className={`p-4 mb-4 rounded-md ${message.includes('successful') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -102,7 +111,7 @@ function LoginForm() {
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Password
+            Password (min 12 characters)
           </label>
           <input
             type="password"
@@ -111,27 +120,28 @@ function LoginForm() {
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
             required
+            minLength={12}
           />
         </div>
         
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`w-full bg-green-600 text-white py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+          className={`w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
-          {isSubmitting ? 'Logging in...' : 'Login'}
+          {isSubmitting ? 'Registering...' : 'Register'}
         </button>
       </form>
       
-      {/* Add registration toggle link */}
+      {/* Add login toggle link */}
       <div className="mt-4 text-center text-gray-600">
         <p>
-          Don't have an account?{" "}
+          Already have an account?{" "}
           <button
-            onClick={() => setShowRegistrationForm(true)}
-            className="text-blue-600 hover:underline"
+            onClick={() => setShowLoginForm(true)}
+            className="text-green-600 hover:underline"
           >
-            Register here
+            Login here
           </button>
         </p>
       </div>
@@ -139,4 +149,4 @@ function LoginForm() {
   );
 }
 
-export default LoginForm;
+export default RegistrationForm;
