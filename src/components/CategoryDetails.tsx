@@ -30,64 +30,92 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
   const [showAddForm, setShowAddForm] = useState(false);
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
   const [selectedExpense, setSelectedExpense] = useState<ExpenseDetail | null>(null);
-
-  // Get current year and month for the query
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  // Get current date for default filter values
   const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth() + 1; // JavaScript months are 0-indexed
+  // Filter states
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
+  const [showFilterOptions, setShowFilterOptions] = useState(false);
+  
+  // Month options for the dropdown
+  const monthOptions = [
+    { value: 1, label: "January" },
+    { value: 2, label: "February" },
+    { value: 3, label: "March" },
+    { value: 4, label: "April" },
+    { value: 5, label: "May" },
+    { value: 6, label: "June" },
+    { value: 7, label: "July" },
+    { value: 8, label: "August" },
+    { value: 9, label: "September" },
+    { value: 10, label: "October" },
+    { value: 11, label: "November" },
+    { value: 12, label: "December" }
+  ];
+  
+  // Year options (last 3 years and next year)
+  const currentYear = today.getFullYear();
+  const yearOptions = [];
+  for (let year = currentYear - 2; year <= currentYear + 1; year++) {
+    yearOptions.push({ value: year, label: year.toString() });
+  }
+
+  const fetchExpenseDetails = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const token = localStorage.getItem('token') || 
+                    localStorage.getItem('authToken') || 
+                    localStorage.getItem('accessToken') ||
+                    localStorage.getItem('jwt');
+      
+      if (!token) {
+        setError("Authentication token not found. Please log in again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const headers = {
+        Authorization: `Bearer ${token}`
+      };
+      
+      // Use the selected year and month for the API call
+      const response = await axios.get(
+        `${API_URL}/expenses/detail?year=${selectedYear}&month=${selectedMonth}&categoryId=${categoryId}`, 
+        { headers, timeout: 10000 }
+      );
+      
+      if (response.status === 200) {
+        setExpenses(response.data);
+      } else {
+        setError("Failed to fetch expense details");
+      }
+    } catch (error: any) {
+      console.error("Error fetching expense details:", error);
+      
+      if (error.response) {
+        if (error.response.status === 401) {
+          setError(`Unauthorized: Please login again (Status: ${error.response.status})`);
+        } else {
+          setError(`Server error: ${error.response.status} ${error.response.statusText}`);
+        }
+      } else if (error.request) {
+        setError("No response received from the server. Please check your internet connection.");
+      } else {
+        setError(`Request configuration error: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchExpenseDetails = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const token = localStorage.getItem('token') || 
-                      localStorage.getItem('authToken') || 
-                      localStorage.getItem('accessToken') ||
-                      localStorage.getItem('jwt');
-        
-        if (!token) {
-          setError("Authentication token not found. Please log in again.");
-          setIsLoading(false);
-          return;
-        }
-
-        const headers = {
-          Authorization: `Bearer ${token}`
-        };
-        
-        const response = await axios.get(
-          `${API_URL}/expenses/detail?year=${year}&month=${month}&categoryId=${categoryId}`, 
-          { headers, timeout: 10000 }
-        );
-        
-        if (response.status === 200) {
-          setExpenses(response.data);
-        } else {
-          setError("Failed to fetch expense details");
-        }
-      } catch (error: any) {
-        console.error("Error fetching expense details:", error);
-        
-        if (error.response) {
-          if (error.response.status === 401) {
-            setError(`Unauthorized: Please login again (Status: ${error.response.status})`);
-          } else {
-            setError(`Server error: ${error.response.status} ${error.response.statusText}`);
-          }
-        } else if (error.request) {
-          setError("No response received from the server. Please check your internet connection.");
-        } else {
-          setError(`Request configuration error: ${error.message}`);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchExpenseDetails();
-  }, [categoryId]);
+  }, [categoryId, selectedYear, selectedMonth]); // Re-fetch when filters change
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +126,8 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
       return;
     }
 
+    setIsSubmitting(true);
+    
     try {
       const token = localStorage.getItem('token') || 
                     localStorage.getItem('authToken') || 
@@ -106,18 +136,47 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
       
       if (!token) {
         setError("Authentication token not found. Please log in again.");
+        setIsSubmitting(false);
         return;
       }
 
-      // This would be the actual add API call
-      console.log(`Would add expense: ${amount} to category ${categoryName}`);
-      alert(`Add expense functionality is a placeholder. Would add: ${amount} to ${categoryName}`);
-      
-      setNewExpenseAmount('');
-      setShowAddForm(false);
-    } catch (error) {
+      const headers = {
+        Authorization: `Bearer ${token}`
+      };
+
+      // Create expense DTO
+      const expenseData = {
+        amount: amount,
+        category: {
+          id: categoryId
+        },
+        date: expenseDate
+      };
+
+      // Make the API call
+      const response = await axios.post(
+        `${API_URL}/expenses`,
+        expenseData,
+        { headers }
+      );
+
+      if (response.status === 200 || response.status === 201) {
+        alert("Expense added successfully!");
+        // Reset form
+        setNewExpenseAmount('');
+        setExpenseDate(new Date().toISOString().split('T')[0]);
+        setShowAddForm(false);
+        
+        // Refresh expense list
+        fetchExpenseDetails();
+      } else {
+        setError("Failed to add expense. Please try again.");
+      }
+    } catch (error: any) {
       console.error("Error adding expense:", error);
-      setError("Failed to add expense");
+      setError(`Failed to add expense: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -127,6 +186,8 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
       const token = localStorage.getItem('token') || 
                     localStorage.getItem('authToken') || 
@@ -135,18 +196,40 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
       
       if (!token) {
         setError("Authentication token not found. Please log in again.");
+        setIsSubmitting(false);
         return;
       }
 
-      // This would be the actual delete API call to DELETE /expenses/:id
-      console.log(`Would delete expense with ID: ${selectedExpense.id}`);
-      alert(`Delete functionality is a placeholder. Would delete expense ID: ${selectedExpense.id}`);
-      
-      setSelectedExpense(null);
-    } catch (error) {
+      const headers = {
+        Authorization: `Bearer ${token}`
+      };
+
+      // Make the DELETE API call
+      const response = await axios.delete(
+        `${API_URL}/expenses/${selectedExpense.id}`,
+        { headers }
+      );
+
+      if (response.status === 200 || response.status === 204) {
+        alert("Expense deleted successfully!");
+        setSelectedExpense(null);
+        
+        // Refresh expense list
+        fetchExpenseDetails();
+      } else {
+        setError("Failed to delete expense. Please try again.");
+      }
+    } catch (error: any) {
       console.error("Error deleting expense:", error);
-      setError("Failed to delete expense");
+      setError(`Failed to delete expense: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleApplyFilters = () => {
+    setShowFilterOptions(false);
+    fetchExpenseDetails();
   };
 
   return (
@@ -156,6 +239,7 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
           <button 
             className="bg-gray-300 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-400 transition-colors duration-200 mr-2"
             onClick={onBackClick}
+            disabled={isSubmitting}
           >
             Back
           </button>
@@ -167,46 +251,126 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
           <button
             className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-colors duration-200 disabled:bg-gray-400"
             onClick={handleDeleteExpense}
-            disabled={!selectedExpense}
+            disabled={!selectedExpense || isSubmitting}
           >
-            Delete
+            {isSubmitting ? 'Processing...' : 'Delete'}
           </button>
           <button
-            className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition-colors duration-200"
+            className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition-colors duration-200 disabled:bg-gray-400"
             onClick={() => setShowAddForm(!showAddForm)}
+            disabled={isSubmitting}
           >
             Add
+          </button>
+          <button
+            className="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition-colors duration-200"
+            onClick={() => setShowFilterOptions(!showFilterOptions)}
+          >
+            Filter
           </button>
         </div>
       </div>
 
-      {showAddForm && (
+      {showFilterOptions && (
         <div className="mb-4 p-4 border border-gray-200 rounded-md bg-gray-50">
-          <form onSubmit={handleAddExpense} className="flex items-center gap-2">
-            <input
-              type="number"
-              value={newExpenseAmount}
-              onChange={(e) => setNewExpenseAmount(e.target.value)}
-              placeholder="Amount"
-              step="0.01"
-              className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex flex-col">
+              <label htmlFor="yearFilter" className="text-sm text-gray-600 mb-1">Year</label>
+              <select
+                id="yearFilter"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+                className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+              >
+                {yearOptions.map(year => (
+                  <option key={year.value} value={year.value} className="text-gray-800">
+                    {year.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex flex-col">
+              <label htmlFor="monthFilter" className="text-sm text-gray-600 mb-1">Month</label>
+              <select
+                id="monthFilter"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
+                className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+              >
+                {monthOptions.map(month => (
+                  <option key={month.value} value={month.value} className="text-gray-800">
+                    {month.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
             <button
-              type="submit"
+              onClick={handleApplyFilters}
               className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-200"
             >
-              Save
+              Apply
             </button>
-            <button
-              type="button"
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors duration-200"
-              onClick={() => setShowAddForm(false)}
-            >
-              Cancel
-            </button>
+          </div>
+        </div>
+      )}
+
+      {showAddForm && (
+        <div className="mb-4 p-4 border border-gray-200 rounded-md bg-gray-50">
+          <form onSubmit={handleAddExpense} className="space-y-3">
+            <div className="flex flex-col">
+              <label htmlFor="amount" className="text-sm text-gray-600 mb-1">Amount</label>
+              <input
+                id="amount"
+                type="number"
+                value={newExpenseAmount}
+                onChange={(e) => setNewExpenseAmount(e.target.value)}
+                placeholder="Amount"
+                step="0.01"
+                className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                required
+              />
+            </div>
+            
+            <div className="flex flex-col">
+              <label htmlFor="date" className="text-sm text-gray-600 mb-1">Date</label>
+              <input
+                id="date"
+                type="date"
+                value={expenseDate}
+                onChange={(e) => setExpenseDate(e.target.value)}
+                className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                required
+              />
+            </div>
+            
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="submit"
+                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-200 disabled:bg-gray-400"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                type="button"
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors duration-200"
+                onClick={() => setShowAddForm(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+            </div>
           </form>
         </div>
       )}
+
+      <div className="mb-4 flex items-center justify-between">
+        <div className="text-gray-600">
+          <span className="font-medium">Current filter:</span> {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear}
+        </div>
+      </div>
       
       {isLoading && (
         <div className="flex justify-center items-center py-8">
@@ -244,6 +408,12 @@ const CategoryDetails: React.FC<CategoryDetailsProps> = ({
               ))}
             </tbody>
           </table>
+          
+          {expenses.length === 0 && !isLoading && (
+            <div className="text-center py-4 text-gray-500">
+              No expenses found for this category in {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear}
+            </div>
+          )}
         </div>
       )}
     </div>
